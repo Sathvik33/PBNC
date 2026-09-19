@@ -104,6 +104,20 @@ export const api = {
     return res.json();
   },
 
+  deleteDocument: async (documentId) => {
+    const token = api.getToken();
+    const res = await fetch(`${API_BASE}/documents/${documentId}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!res.ok && res.status !== 204) {
+      throw new Error("Failed to delete document");
+    }
+    return true;
+  },
+
   triggerProcessing: (documentId) =>
     api.request(`/documents/${documentId}/process`, { method: "POST" }),
 
