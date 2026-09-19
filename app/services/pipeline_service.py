@@ -115,8 +115,25 @@ def run_pipeline(db: Session, job_id: str):
             db.add(doc_page)
             db.commit()
 
+        # OCR Processing Stage
+        update_job_progress(db, job, ProcessingStage.OCR, 35, DocumentStatus.OCR_PROCESSING)
+        from app.services.ocr_service import OCRService
+        ocr_service = OCRService()
+
+        for page in doc.pages:
+            if page.ocr_used and page.processing_status == "PENDING_OCR" and page.image_path:
+                try:
+                    img_bytes = storage.download(page.image_path)
+                    ocr_res = ocr_service.process_image(img_bytes)
+                    page.extracted_text = ocr_res.raw_text
+                    page.processing_status = "EXTRACTED"
+                except Exception as ocr_err:
+                    logger.warning(f"OCR processing failed for page {page.page_number}: {ocr_err}")
+                    page.processing_status = "FAILED"
+        db.commit()
+
         # Progression through remaining pipeline stages
-        for stage, progress, doc_status in PIPELINE_STAGES[2:]:
+        for stage, progress, doc_status in PIPELINE_STAGES[4:]:
             update_job_progress(db, job, stage, progress, doc_status)
 
         logger.info(f"Pipeline completed for document {doc.id}")
