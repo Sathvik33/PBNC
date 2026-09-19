@@ -141,8 +141,34 @@ def run_pipeline(db: Session, job_id: str):
                 page.normalized_text = TextNormalizer.normalize(page.extracted_text)
         db.commit()
 
+        # Question Segmentation Stage
+        update_job_progress(db, job, ProcessingStage.QUESTION_SEGMENTATION, 65, DocumentStatus.EXTRACTING)
+        from app.processors.question_segmenter import QuestionSegmenter
+        from app.models.question import Question
+        from app.models.enums import QuestionType, QuestionStatus
+
+        page_texts = [(p.page_number, p.normalized_text or p.extracted_text or "") for p in doc.pages]
+        segments = QuestionSegmenter.segment(page_texts)
+
+        # Clear previous questions if re-running
+        db.query(Question).filter(Question.document_id == doc.id).delete()
+
+        for seg in segments:
+            q = Question(
+                document_id=doc.id,
+                question_number=seg.detected_number,
+                question_text=seg.text,
+                question_type=QuestionType.MCQ if seg.options else QuestionType.UNKNOWN,
+                options=[opt.model_dump() for opt in seg.options] if seg.options else None,
+                confidence=seg.confidence,
+                status=QuestionStatus.EXTRACTED if seg.confidence >= 0.85 else QuestionStatus.PARTIAL,
+                source_pages=list(range(seg.start_page, seg.end_page + 1))
+            )
+            db.add(q)
+        db.commit()
+
         # Progression through remaining pipeline stages
-        for stage, progress, doc_status in PIPELINE_STAGES[5:]:
+        for stage, progress, doc_status in PIPELINE_STAGES[6:]:
             update_job_progress(db, job, stage, progress, doc_status)
 
         logger.info(f"Pipeline completed for document {doc.id}")
