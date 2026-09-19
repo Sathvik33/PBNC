@@ -132,8 +132,17 @@ def run_pipeline(db: Session, job_id: str):
                     page.processing_status = "FAILED"
         db.commit()
 
+        # Text Normalization Stage
+        update_job_progress(db, job, ProcessingStage.TEXT_NORMALIZATION, 50, DocumentStatus.EXTRACTING)
+        from app.processors.text_processor import TextNormalizer
+
+        for page in doc.pages:
+            if page.extracted_text:
+                page.normalized_text = TextNormalizer.normalize(page.extracted_text)
+        db.commit()
+
         # Progression through remaining pipeline stages
-        for stage, progress, doc_status in PIPELINE_STAGES[4:]:
+        for stage, progress, doc_status in PIPELINE_STAGES[5:]:
             update_job_progress(db, job, stage, progress, doc_status)
 
         logger.info(f"Pipeline completed for document {doc.id}")

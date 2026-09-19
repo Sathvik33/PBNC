@@ -25,6 +25,7 @@ class DocumentPage(Base):
     page_number: Mapped[int] = mapped_column(Integer, nullable=False)
     image_path: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     extracted_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    normalized_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     ocr_used: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     processing_status: Mapped[str] = mapped_column(String(50), default="PENDING", nullable=False)
 
