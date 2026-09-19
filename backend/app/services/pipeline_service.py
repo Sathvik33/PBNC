@@ -169,9 +169,13 @@ def run_pipeline(db: Session, job_id: str):
 
         # 1. Question Extraction & Structuring Stage (LLM + Regex Segmentation)
         update_job_progress(db, job, ProcessingStage.QUESTION_EXTRACTION, 75, DocumentStatus.EXTRACTING)
+        from app.core.config import settings
         from app.services.extraction_service import QuestionExtractionService
         from app.schemas.segmentation import QuestionOption
         extraction_service = QuestionExtractionService()
+
+        # Query already segmented questions from previous step
+        questions = db.query(Question).filter(Question.document_id == doc.id).all()
 
         # Check if LLM provider (Groq / OpenRouter) is available
         has_cloud_llm = bool(settings.GROQ_API_KEY or settings.OPENROUTER_API_KEY)
