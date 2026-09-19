@@ -8,20 +8,29 @@ from app.providers.llm.cloud_providers import GroqProvider, OpenRouterProvider
 
 class ResilientLLMProvider(LLMProvider):
     def __init__(self):
-        self.primary_name = settings.LLM_PROVIDER.lower()
+        # Auto-prioritize Groq or OpenRouter if keys are configured
+        if settings.GROQ_API_KEY:
+            self.primary_name = "groq"
+        elif settings.OPENROUTER_API_KEY:
+            self.primary_name = "openrouter"
+        else:
+            self.primary_name = settings.LLM_PROVIDER.lower()
+
         self.ollama = OllamaProvider()
         self.groq = GroqProvider() if settings.GROQ_API_KEY else None
         self.openrouter = OpenRouterProvider() if settings.OPENROUTER_API_KEY else None
 
     def generate(self, prompt: str, system_prompt: Optional[str] = None, json_mode: bool = True) -> LLMResponse:
-        # 1. Primary provider attempt (Ollama by default)
+        # 1. Primary provider attempt
         try:
-            if self.primary_name == "ollama":
-                return self.ollama.generate(prompt, system_prompt, json_mode)
-            elif self.primary_name == "groq" and self.groq:
+            if self.primary_name == "groq" and self.groq:
+                logger.info(f"Calling Groq with model {self.groq.model}...")
                 return self.groq.generate(prompt, system_prompt, json_mode)
             elif self.primary_name == "openrouter" and self.openrouter:
+                logger.info(f"Calling OpenRouter with model {self.openrouter.model}...")
                 return self.openrouter.generate(prompt, system_prompt, json_mode)
+            elif self.primary_name == "ollama":
+                return self.ollama.generate(prompt, system_prompt, json_mode)
         except Exception as e:
             logger.warning(f"Primary LLM provider ({self.primary_name}) failed: {e}. Attempting fallback...")
 

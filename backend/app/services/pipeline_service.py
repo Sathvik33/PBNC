@@ -167,35 +167,42 @@ def run_pipeline(db: Session, job_id: str):
             db.add(q)
         db.commit()
 
-        # 1. Question Extraction & Classification Stage (LLM + Rules)
+        # 1. Question Extraction & Structuring Stage (LLM + Regex Segmentation)
         update_job_progress(db, job, ProcessingStage.QUESTION_EXTRACTION, 75, DocumentStatus.EXTRACTING)
         from app.services.extraction_service import QuestionExtractionService
         from app.schemas.segmentation import QuestionOption
         extraction_service = QuestionExtractionService()
 
-        # Update classification for extracted questions
-        questions = db.query(Question).filter(Question.document_id == doc.id).all()
+        # Check if LLM provider (Groq / OpenRouter) is available
+        has_cloud_llm = bool(settings.GROQ_API_KEY or settings.OPENROUTER_API_KEY)
         
-        # If rule-based segmentation yielded 0 questions or single unparsed block, invoke LLM parser
-        if len(questions) == 0 or (len(questions) == 1 and not questions[0].options):
+        # If cloud LLM is configured OR rule-based questions have no options, run LLM structured extraction
+        needs_llm = has_cloud_llm or len(questions) == 0 or any(not q.options for q in questions)
+
+        if needs_llm:
             combined_text = "\n\n".join(p.normalized_text or p.extracted_text or "" for p in doc.pages)
-            llm_questions = extraction_service.extract_with_llm(combined_text)
-            if llm_questions:
-                db.query(Question).filter(Question.document_id == doc.id).delete()
-                for lq in llm_questions:
-                    new_q = Question(
-                        document_id=doc.id,
-                        question_number=lq.question_number,
-                        question_text=lq.question_text,
-                        question_type=lq.question_type,
-                        options=[{"label": opt.label, "text": opt.text} for opt in lq.options] if lq.options else None,
-                        confidence=lq.confidence,
-                        status=QuestionStatus.EXTRACTED if lq.confidence >= 0.85 else QuestionStatus.PARTIAL,
-                        source_pages=[1]
-                    )
-                    db.add(new_q)
-                db.commit()
-                questions = db.query(Question).filter(Question.document_id == doc.id).all()
+            if combined_text.strip():
+                try:
+                    logger.info(f"Invoking LLM question extraction for document {doc.id}...")
+                    llm_questions = extraction_service.extract_with_llm(combined_text)
+                    if llm_questions:
+                        db.query(Question).filter(Question.document_id == doc.id).delete()
+                        for lq in llm_questions:
+                            new_q = Question(
+                                document_id=doc.id,
+                                question_number=lq.question_number,
+                                question_text=lq.question_text,
+                                question_type=lq.question_type,
+                                options=[{"label": opt.label, "text": opt.text} for opt in lq.options] if lq.options else None,
+                                confidence=lq.confidence,
+                                status=QuestionStatus.EXTRACTED if lq.confidence >= 0.85 else QuestionStatus.PARTIAL,
+                                source_pages=[1]
+                            )
+                            db.add(new_q)
+                        db.commit()
+                        questions = db.query(Question).filter(Question.document_id == doc.id).all()
+                except Exception as llm_err:
+                    logger.warning(f"LLM extraction skipped or failed: {llm_err}")
 
         for q in questions:
             q_options = [QuestionOption(**opt) for opt in q.options] if q.options else []

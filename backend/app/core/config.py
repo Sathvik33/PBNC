@@ -47,16 +47,16 @@ class Settings(BaseSettings):
     OCR_PROVIDER: str = "tesseract"
 
     # LLM Settings
-    LLM_PROVIDER: str = "ollama"
+    LLM_PROVIDER: str = "groq"
     OLLAMA_BASE_URL: str = "http://localhost:11434"
-    OLLAMA_MODEL: str = "qwen2.5:7b"
+    OLLAMA_MODEL: str = "llama3.2"
 
     # Cloud LLM Fallback (Optional)
     GROQ_API_KEY: Optional[str] = None
-    GROQ_MODEL: str = "llama-3.1-70b-versatile"
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
 
     OPENROUTER_API_KEY: Optional[str] = None
-    OPENROUTER_MODEL: str = "meta-llama/llama-3.1-70b-instruct"
+    OPENROUTER_MODEL: str = "meta-llama/llama-3.3-70b-instruct"
 
     # Vision Provider (Optional)
     VISION_PROVIDER: Optional[str] = None
