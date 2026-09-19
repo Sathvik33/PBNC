@@ -33,23 +33,25 @@ class QuestionExtractionService:
 
     def extract_with_llm(self, text: str) -> List[StructuredQuestion]:
         system_prompt = (
-            "You are an expert exam question parser. Extract questions into valid JSON strictly matching the schema:\n"
+            "You are an expert document and examination intelligence parser. "
+            "Extract all questions, exercises, terminal tasks, prompts, or activity items into valid JSON strictly matching the schema:\n"
             "{\n"
             '  "questions": [\n'
             '    {\n'
             '      "question_number": "1",\n'
-            '      "question_text": "question stem",\n'
-            '      "question_type": "MCQ" | "MULTIPLE_SELECT" | "TRUE_FALSE" | "FILL_BLANK" | "DESCRIPTIVE" | "UNKNOWN",\n'
+            '      "question_text": "description of question, command, task, or activity",\n'
+            '      "question_type": "MCQ" | "MULTIPLE_SELECT" | "TRUE_FALSE" | "FILL_BLANK" | "DESCRIPTIVE" | "SHORT_ANSWER" | "UNKNOWN",\n'
             '      "options": [{"label": "A", "text": "option text"}],\n'
             '      "answer": "A" or null,\n'
             '      "confidence": 0.95\n'
             "    }\n"
             "  ]\n"
             "}\n"
-            "Return ONLY the JSON object. Do not include markdown codeblocks or conversational text."
+            "If the document contains terminal commands, output logs, or non-MCQ activities, extract each logical command, step, or activity item as a DESCRIPTIVE or SHORT_ANSWER question with options as empty array [].\n"
+            "Return ONLY the valid JSON object. Do not include markdown codeblocks or conversational text."
         )
 
-        user_prompt = f"Extract all examination questions from the following text:\n\n{text}"
+        user_prompt = f"Extract all questions, tasks, commands, and exercises from the following text:\n\n{text}"
 
         for attempt in range(2):
             try:

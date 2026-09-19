@@ -208,6 +208,24 @@ def run_pipeline(db: Session, job_id: str):
                 except Exception as llm_err:
                     logger.warning(f"LLM extraction skipped or failed: {llm_err}")
 
+        # If still no questions detected (e.g. terminal log activity, raw code snippet), create a descriptive activity item
+        if not questions:
+            full_content = "\n\n".join((p.normalized_text or p.extracted_text or "").strip() for p in doc.pages)
+            if full_content.strip():
+                fallback_q = Question(
+                    document_id=doc.id,
+                    question_number="1",
+                    question_text=full_content[:2000],
+                    question_type=QuestionType.DESCRIPTIVE,
+                    options=None,
+                    confidence=0.85,
+                    status=QuestionStatus.EXTRACTED,
+                    source_pages=[1]
+                )
+                db.add(fallback_q)
+                db.commit()
+                questions = db.query(Question).filter(Question.document_id == doc.id).all()
+
         for q in questions:
             q_options = [QuestionOption(**opt) for opt in q.options] if q.options else []
             q.question_type = extraction_service.classify_question_type(q.question_text, q_options)
