@@ -121,12 +121,15 @@ def run_pipeline(db: Session, job_id: str):
         ocr_service = OCRService()
 
         for page in doc.pages:
-            if page.ocr_used and page.processing_status == "PENDING_OCR" and page.image_path:
+            # If text is empty or marked for OCR, run OCR
+            should_ocr = page.ocr_used or not page.extracted_text or page.processing_status == "PENDING_OCR"
+            if should_ocr and page.image_path:
                 try:
                     img_bytes = storage.download(page.image_path)
                     ocr_res = ocr_service.process_image(img_bytes)
                     page.extracted_text = ocr_res.raw_text
                     page.processing_status = "EXTRACTED"
+                    logger.info(f"Page {page.page_number} OCR finished: {len(page.extracted_text or '')} characters extracted.")
                 except Exception as ocr_err:
                     logger.warning(f"OCR processing failed for page {page.page_number}: {ocr_err}")
                     page.processing_status = "FAILED"
