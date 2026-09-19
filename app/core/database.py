@@ -21,8 +21,19 @@ sync_engine = create_engine(
 SyncSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=sync_engine)
 
 # Async engine for FastAPI
-# Using psycopg 3 async connection format
 async_db_url = database_url
+if async_db_url.startswith("postgresql://"):
+    async_db_url = async_db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+elif async_db_url.startswith("postgresql+psycopg://"):
+    async_db_url = async_db_url.replace("postgresql+psycopg://", "postgresql+asyncpg://", 1)
+
+if "sslmode=require" in async_db_url:
+    async_db_url = async_db_url.replace("sslmode=require", "ssl=require")
+if "&channel_binding=require" in async_db_url:
+    async_db_url = async_db_url.replace("&channel_binding=require", "")
+if "?channel_binding=require" in async_db_url:
+    async_db_url = async_db_url.replace("?channel_binding=require", "")
+
 if "sqlite" in async_db_url and "aiosqlite" not in async_db_url:
     async_db_url = async_db_url.replace("sqlite://", "sqlite+aiosqlite://")
 

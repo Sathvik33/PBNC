@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 1 day
 
     # Storage
+    MAX_FILE_SIZE_MB: int = 25
     STORAGE_TYPE: str = "s3"
     STORAGE_PATH: str = "./storage"
     AWS_ENDPOINT_URL_S3: Optional[str] = None
