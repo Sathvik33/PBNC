@@ -19,16 +19,18 @@ export default function DocumentList({ documents, selectedDocId, onSelectDoc, on
   const pollStatus = (docId) => {
     const interval = setInterval(async () => {
       try {
-        const job = await api.getJobStatus(docId);
+        const res = await api.getJobStatus(docId);
+        const job = res.job;
+        const docStatus = res.document_status;
         setProcessingStates(prev => ({
           ...prev,
           [docId]: {
-            stage: job.current_stage || job.status,
-            progress: job.progress || 0
+            stage: job ? (job.current_stage || job.status) : docStatus,
+            progress: job ? job.progress : 0
           }
         }));
 
-        if (job.status === "COMPLETED" || job.status === "FAILED") {
+        if (docStatus === "COMPLETED" || docStatus === "FAILED" || (job && (job.status === "COMPLETED" || job.status === "FAILED"))) {
           clearInterval(interval);
           onRefresh();
         }

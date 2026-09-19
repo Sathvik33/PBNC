@@ -105,9 +105,9 @@ export const api = {
   },
 
   triggerProcessing: (documentId) =>
-    api.request(`/processing/jobs/${documentId}`, { method: "POST" }),
+    api.request(`/documents/${documentId}/process`, { method: "POST" }),
 
-  getJobStatus: (documentId) => api.request(`/processing/jobs/${documentId}`),
+  getJobStatus: (documentId) => api.request(`/documents/${documentId}/status`),
 
   getQuestions: (documentId, params = {}) => {
     const query = new URLSearchParams(params).toString();
