@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from "react";
-import { Download, RefreshCw, Layers, SlidersHorizontal, Search } from "lucide-react";
+import { Download, RefreshCw, Search, FileQuestion, Filter } from "lucide-react";
 import { api } from "../services/api";
 import QuestionCard from "./QuestionCard";
 
-export default function QuestionWorkspace({ selectedDocId }) {
+export default function QuestionWorkspace({ selectedDoc, onRefresh }) {
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [typeFilter, setTypeFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [minConfidence, setMinConfidence] = useState(0);
+
+  const selectedDocId = selectedDoc?.id;
 
   const fetchQuestions = async () => {
     if (!selectedDocId) return;
@@ -16,7 +17,6 @@ export default function QuestionWorkspace({ selectedDocId }) {
     try {
       const params = {};
       if (typeFilter) params.type = typeFilter;
-      if (minConfidence > 0) params.min_confidence = minConfidence / 100;
 
       const res = await api.getQuestions(selectedDocId, params);
       setQuestions(res.items || []);
@@ -29,13 +29,13 @@ export default function QuestionWorkspace({ selectedDocId }) {
 
   useEffect(() => {
     fetchQuestions();
-  }, [selectedDocId, typeFilter, minConfidence]);
+  }, [selectedDocId, typeFilter]);
 
   const handleExportJSON = () => {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(questions, null, 2));
     const downloadAnchor = document.createElement("a");
     downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `questions_${selectedDocId}.json`);
+    downloadAnchor.setAttribute("download", `questions_${selectedDoc?.filename || selectedDocId}.json`);
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
@@ -49,21 +49,23 @@ export default function QuestionWorkspace({ selectedDocId }) {
     return stemMatches || numberMatches;
   });
 
-  if (!selectedDocId) {
+  if (!selectedDoc) {
     return (
       <div style={{
-        backgroundColor: "var(--bg-card)",
-        border: "1px solid var(--border-subtle)",
-        borderRadius: "12px",
-        padding: "48px 24px",
-        textAlign: "center"
+        flex: 1,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "40px",
+        color: "var(--text-tertiary)"
       }}>
-        <Layers size={32} color="var(--text-tertiary)" style={{ marginBottom: "12px" }} />
-        <h4 style={{ fontSize: "15px", fontWeight: "600", color: "var(--text-primary)", marginBottom: "4px" }}>
-          No Document Selected
-        </h4>
-        <p style={{ fontSize: "13px", color: "var(--text-secondary)" }}>
-          Select a document from the list above to view its structured questions and answers.
+        <FileQuestion size={40} style={{ marginBottom: "12px", opacity: 0.5 }} />
+        <h3 style={{ fontSize: "16px", color: "var(--text-secondary)", fontWeight: "500" }}>
+          No document selected
+        </h3>
+        <p style={{ fontSize: "13px", marginTop: "4px" }}>
+          Select a document from the left sidebar or click <strong>+</strong> to upload a new one.
         </p>
       </div>
     );
@@ -71,45 +73,61 @@ export default function QuestionWorkspace({ selectedDocId }) {
 
   return (
     <div style={{
-      backgroundColor: "var(--bg-card)",
-      border: "1px solid var(--border-subtle)",
-      borderRadius: "12px",
-      padding: "20px"
+      flex: 1,
+      display: "flex",
+      flexDirection: "column",
+      height: "calc(100vh - 60px)",
+      overflowY: "auto",
+      padding: "24px 32px"
     }}>
-      {/* Action Header & Filters */}
+      {/* Workspace Header */}
       <div style={{
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
         flexWrap: "wrap",
-        gap: "12px",
+        gap: "14px",
+        paddingBottom: "18px",
+        borderBottom: "1px solid var(--border-subtle)",
         marginBottom: "20px"
       }}>
         <div>
-          <h3 style={{ fontSize: "16px", fontWeight: "600", color: "var(--text-primary)" }}>
-            Extracted Questions ({filteredQuestions.length})
-          </h3>
-          <p style={{ fontSize: "12.5px", color: "var(--text-secondary)", marginTop: "2px" }}>
-            Parsed stems, options, and linked answer keys.
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <h2 style={{ fontSize: "18px", fontWeight: "600", color: "#FFFFFF" }}>
+              {selectedDoc.filename}
+            </h2>
+            <span style={{
+              fontSize: "12px",
+              fontFamily: "var(--font-mono)",
+              color: "var(--text-secondary)",
+              backgroundColor: "rgba(255, 255, 255, 0.06)",
+              padding: "2px 8px",
+              borderRadius: "4px"
+            }}>
+              {filteredQuestions.length} questions
+            </span>
+          </div>
+          <p style={{ fontSize: "12.5px", color: "var(--text-tertiary)", marginTop: "4px" }}>
+            Uploaded on {new Date(selectedDoc.created_at).toLocaleDateString()} • {(selectedDoc.file_size / 1024).toFixed(0)} KB
           </p>
         </div>
 
-        {/* Filter Toolbar */}
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+        {/* Toolbar (Clean search & type filter only) */}
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           {/* Quick Search */}
           <div style={{
             display: "flex",
             alignItems: "center",
-            gap: "6px",
+            gap: "8px",
             backgroundColor: "var(--bg-input)",
             border: "1px solid var(--border-subtle)",
             borderRadius: "8px",
-            padding: "6px 10px"
+            padding: "6px 12px"
           }}>
             <Search size={14} color="var(--text-tertiary)" />
             <input
               type="text"
-              placeholder="Search in questions..."
+              placeholder="Search questions..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
@@ -118,7 +136,7 @@ export default function QuestionWorkspace({ selectedDocId }) {
                 color: "var(--text-primary)",
                 fontSize: "13px",
                 outline: "none",
-                width: "160px"
+                width: "180px"
               }}
             />
           </div>
@@ -137,7 +155,7 @@ export default function QuestionWorkspace({ selectedDocId }) {
               outline: "none"
             }}
           >
-            <option value="">All Types</option>
+            <option value="">All Question Types</option>
             <option value="MCQ">MCQ</option>
             <option value="TRUE_FALSE">True / False</option>
             <option value="FILL_BLANK">Fill in Blank</option>
@@ -145,52 +163,51 @@ export default function QuestionWorkspace({ selectedDocId }) {
             <option value="DESCRIPTIVE">Descriptive</option>
           </select>
 
-          {/* Confidence Filter */}
-          <div style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            fontSize: "12.5px",
-            color: "var(--text-secondary)",
-            backgroundColor: "var(--bg-input)",
-            border: "1px solid var(--border-subtle)",
-            borderRadius: "8px",
-            padding: "6px 10px"
-          }}>
-            <SlidersHorizontal size={13} />
-            <span>&ge; {minConfidence}%</span>
-            <input
-              type="range"
-              min="0"
-              max="90"
-              step="10"
-              value={minConfidence}
-              onChange={(e) => setMinConfidence(Number(e.target.value))}
-              style={{ width: "65px" }}
-            />
-          </div>
-
           <button onClick={fetchQuestions} className="btn-secondary" title="Refresh">
             <RefreshCw size={14} className={loading ? "spin" : ""} />
           </button>
 
-          <button onClick={handleExportJSON} disabled={questions.length === 0} className="btn-primary">
+          <button
+            onClick={handleExportJSON}
+            disabled={questions.length === 0}
+            className="btn-primary"
+          >
             <Download size={14} /> Export JSON
           </button>
         </div>
       </div>
 
-      {/* Questions Stack */}
+      {/* Questions List */}
       {loading ? (
-        <p style={{ textAlign: "center", padding: "40px", color: "var(--text-secondary)", fontSize: "13.5px" }}>
-          Loading extracted questions...
+        <p style={{ textAlign: "center", padding: "60px 0", color: "var(--text-tertiary)", fontSize: "14px" }}>
+          Loading questions...
         </p>
       ) : filteredQuestions.length === 0 ? (
-        <p style={{ textAlign: "center", padding: "40px", color: "var(--text-secondary)", fontSize: "13.5px" }}>
-          No questions found matching your filter criteria. If processing is underway, wait a few seconds and refresh.
-        </p>
+        <div style={{
+          padding: "48px 24px",
+          textAlign: "center",
+          backgroundColor: "var(--bg-card)",
+          borderRadius: "12px",
+          border: "1px solid var(--border-subtle)",
+          color: "var(--text-secondary)"
+        }}>
+          {selectedDoc.status === "UPLOADED" ? (
+            <div>
+              <p style={{ fontSize: "14px", fontWeight: "500", color: "#FFFFFF", marginBottom: "8px" }}>
+                This document has not been processed yet.
+              </p>
+              <p style={{ fontSize: "13px", color: "var(--text-tertiary)" }}>
+                Click <strong>"Extract"</strong> next to the document in the sidebar to run the extraction pipeline.
+              </p>
+            </div>
+          ) : (
+            <p style={{ fontSize: "13.5px" }}>
+              No questions found matching your filter criteria.
+            </p>
+          )}
+        </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px", paddingBottom: "40px" }}>
           {filteredQuestions.map((q) => (
             <QuestionCard key={q.id} question={q} />
           ))}
