@@ -175,8 +175,29 @@ def run_pipeline(db: Session, job_id: str):
 
         # Update classification for extracted questions
         questions = db.query(Question).filter(Question.document_id == doc.id).all()
+        
+        # If rule-based segmentation yielded 0 questions or single unparsed block, invoke LLM parser
+        if len(questions) == 0 or (len(questions) == 1 and not questions[0].options):
+            combined_text = "\n\n".join(p.normalized_text or p.extracted_text or "" for p in doc.pages)
+            llm_questions = extraction_service.extract_with_llm(combined_text)
+            if llm_questions:
+                db.query(Question).filter(Question.document_id == doc.id).delete()
+                for lq in llm_questions:
+                    new_q = Question(
+                        document_id=doc.id,
+                        question_number=lq.question_number,
+                        question_text=lq.question_text,
+                        question_type=lq.question_type,
+                        options=[{"label": opt.label, "text": opt.text} for opt in lq.options] if lq.options else None,
+                        confidence=lq.confidence,
+                        status=QuestionStatus.EXTRACTED if lq.confidence >= 0.85 else QuestionStatus.PARTIAL,
+                        source_pages=[1]
+                    )
+                    db.add(new_q)
+                db.commit()
+                questions = db.query(Question).filter(Question.document_id == doc.id).all()
+
         for q in questions:
-            # Map options to QuestionOption
             q_options = [QuestionOption(**opt) for opt in q.options] if q.options else []
             q.question_type = extraction_service.classify_question_type(q.question_text, q_options)
         db.commit()
@@ -218,6 +239,13 @@ def run_pipeline(db: Session, job_id: str):
                 if match.status == "MATCHED":
                     q.answer = match.answer
                     q.answer_confidence = match.answer_confidence
+                    if q.options and match.answer:
+                        updated_options = []
+                        for opt in q.options:
+                            opt_label = opt.get("label") or opt.get("key") or ""
+                            opt["is_correct"] = (opt_label.strip().upper() == match.answer.strip().upper())
+                            updated_options.append(opt)
+                        q.options = updated_options
         db.commit()
 
         # 4. Confidence & Validation Stage

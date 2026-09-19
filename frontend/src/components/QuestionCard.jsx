@@ -134,7 +134,7 @@ export default function QuestionCard({ question }) {
                   backgroundColor: isCorrect ? "#10B981" : "rgba(255, 255, 255, 0.08)",
                   color: isCorrect ? "#FFFFFF" : "var(--text-muted)"
                 }}>
-                  {opt.key}
+                  {opt.label || opt.key}
                 </span>
                 <span style={{
                   fontSize: "14px",
