@@ -1,3 +1,4 @@
+import io
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from app.models.document import Document
@@ -61,8 +62,61 @@ def run_pipeline(db: Session, job_id: str):
     db.commit()
 
     try:
-        for stage, progress, doc_status in PIPELINE_STAGES:
-            logger.info(f"Processing document {doc.id} - stage: {stage.value} ({progress}%)")
+        from app.services.s3_storage_service import get_storage_service
+        from app.processors.pdf_processor import PDFProcessor
+        from app.processors.image_processor import ImageProcessor
+        from app.models.document_page import DocumentPage
+
+        storage = get_storage_service()
+        file_bytes = storage.download(doc.storage_path)
+
+        update_job_progress(db, job, ProcessingStage.VALIDATING, 0, DocumentStatus.VALIDATING)
+
+        update_job_progress(db, job, ProcessingStage.EXTRACTING_PAGES, 10, DocumentStatus.PROCESSING)
+        pages_data = []
+
+        if doc.file_type == "application/pdf":
+            pdf_proc = PDFProcessor()
+            pdf_result = pdf_proc.process(file_bytes)
+            doc.page_count = pdf_result["page_count"]
+            db.commit()
+
+            for p in pdf_result["pages"]:
+                img_path = None
+                if p.image_bytes:
+                    img_path = f"pages/{doc.id}/page_{p.page_number}.png"
+                    storage.upload(io.BytesIO(p.image_bytes), img_path, "image/png")
+
+                doc_page = DocumentPage(
+                    document_id=doc.id,
+                    page_number=p.page_number,
+                    image_path=img_path,
+                    extracted_text=p.text if not p.is_scanned else None,
+                    ocr_used=p.is_scanned,
+                    processing_status="EXTRACTED" if not p.is_scanned else "PENDING_OCR"
+                )
+                db.add(doc_page)
+            db.commit()
+
+        elif doc.file_type.startswith("image/"):
+            img_proc = ImageProcessor()
+            processed_bytes, _ = img_proc.process(file_bytes)
+            img_path = f"pages/{doc.id}/page_1.png"
+            storage.upload(io.BytesIO(processed_bytes), img_path, "image/png")
+            doc.page_count = 1
+            doc_page = DocumentPage(
+                document_id=doc.id,
+                page_number=1,
+                image_path=img_path,
+                extracted_text=None,
+                ocr_used=True,
+                processing_status="PENDING_OCR"
+            )
+            db.add(doc_page)
+            db.commit()
+
+        # Progression through remaining pipeline stages
+        for stage, progress, doc_status in PIPELINE_STAGES[2:]:
             update_job_progress(db, job, stage, progress, doc_status)
 
         logger.info(f"Pipeline completed for document {doc.id}")
