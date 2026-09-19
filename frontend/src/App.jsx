@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Sparkles, LogOut, User, FileText, CheckCircle2 } from "lucide-react";
+import { LogOut, User, Layers, Sparkles } from "lucide-react";
 import { api } from "./services/api";
 import AuthModal from "./components/AuthModal";
 import DocumentUpload from "./components/DocumentUpload";
@@ -60,90 +60,73 @@ export default function App() {
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       {/* Top Navbar */}
       <header style={{
-        height: "68px",
-        backgroundColor: "var(--bg-surface)",
-        borderBottom: "1px solid var(--border)",
+        height: "60px",
+        backgroundColor: "var(--bg-sidebar)",
+        borderBottom: "1px solid var(--border-subtle)",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        padding: "0 32px",
+        padding: "0 28px",
         position: "sticky",
         top: 0,
         zIndex: 50
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <div style={{
-            width: "38px",
-            height: "38px",
-            borderRadius: "10px",
-            background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)",
+            width: "30px",
+            height: "30px",
+            borderRadius: "8px",
+            backgroundColor: "var(--primary)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            boxShadow: "0 4px 12px var(--primary-glow)"
+            color: "#FFFFFF"
           }}>
-            <Sparkles size={20} color="#FFFFFF" />
+            <Layers size={18} />
           </div>
-          <div>
-            <h1 style={{ fontSize: "16.5px", fontWeight: "700", letterSpacing: "-0.3px" }}>
-              DocIntelligence AI
-            </h1>
-            <span style={{ fontSize: "11px", color: "var(--accent)", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-              Production v1.0
-            </span>
-          </div>
+          <span style={{ fontSize: "15px", fontWeight: "600", letterSpacing: "-0.2px" }}>
+            DocIntelligence
+          </span>
         </div>
 
-        {/* User Badge & Logout */}
-        <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+        {/* User Account Bar */}
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <div style={{
             display: "flex",
             alignItems: "center",
-            gap: "8px",
-            backgroundColor: "var(--bg-main)",
-            padding: "6px 12px",
-            borderRadius: "8px",
-            border: "1px solid var(--border)"
+            gap: "7px",
+            backgroundColor: "var(--bg-input)",
+            padding: "5px 12px",
+            borderRadius: "6px",
+            border: "1px solid var(--border-subtle)",
+            fontSize: "13px",
+            color: "var(--text-secondary)"
           }}>
-            <User size={15} color="var(--primary)" />
-            <span style={{ fontSize: "13px", fontWeight: "600", color: "var(--text-main)" }}>
-              {userEmail}
-            </span>
+            <User size={14} />
+            <span>{userEmail}</span>
           </div>
 
           <button
             onClick={handleLogout}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "7px 12px",
-              borderRadius: "8px",
-              backgroundColor: "rgba(239, 68, 68, 0.1)",
-              border: "1px solid rgba(239, 68, 68, 0.25)",
-              color: "#F87171",
-              fontSize: "13px",
-              fontWeight: "600",
-              cursor: "pointer",
-              transition: "all 0.15s ease"
-            }}
+            className="btn-secondary"
+            style={{ padding: "5px 10px", fontSize: "12px" }}
           >
-            <LogOut size={14} /> Logout
+            <LogOut size={13} /> Log out
           </button>
         </div>
       </header>
 
-      {/* Main Workspace Layout */}
+      {/* Main Container */}
       <main style={{
-        maxWidth: "1280px",
+        maxWidth: "1200px",
         width: "100%",
         margin: "0 auto",
-        padding: "32px 24px",
+        padding: "24px 20px",
         display: "flex",
         flexDirection: "column",
-        gap: "24px"
+        gap: "18px"
       }}>
-        {/* Document Upload Section */}
+        {/* Document Upload */}
         <DocumentUpload
           onUploadSuccess={(newDoc) => {
             loadDocuments();
@@ -151,7 +134,7 @@ export default function App() {
           }}
         />
 
-        {/* Uploaded Documents List */}
+        {/* Document List */}
         <DocumentList
           documents={documents}
           selectedDocId={selectedDocId}
@@ -159,7 +142,7 @@ export default function App() {
           onRefresh={loadDocuments}
         />
 
-        {/* Question Workspace */}
+        {/* Structured Questions Workspace */}
         <QuestionWorkspace selectedDocId={selectedDocId} />
       </main>
     </div>

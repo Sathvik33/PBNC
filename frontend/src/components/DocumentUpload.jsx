@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { UploadCloud, FileText, CheckCircle2, AlertCircle } from "lucide-react";
+import { Upload, FileText, CheckCircle2, AlertCircle, Sparkles } from "lucide-react";
 import { api } from "../services/api";
 
 export default function DocumentUpload({ onUploadSuccess }) {
@@ -16,10 +16,10 @@ export default function DocumentUpload({ onUploadSuccess }) {
 
     try {
       const doc = await api.uploadDocument(file);
-      setSuccess(`Uploaded ${doc.filename} successfully!`);
+      setSuccess(`Uploaded ${doc.filename}`);
       onUploadSuccess(doc);
     } catch (err) {
-      setError(err.message || "Failed to upload document");
+      setError(err.message || "Upload failed");
     } finally {
       setUploading(false);
     }
@@ -34,60 +34,56 @@ export default function DocumentUpload({ onUploadSuccess }) {
     }
   };
 
-  const handleChange = (e) => {
-    e.preventDefault();
-    if (e.target.files && e.target.files[0]) {
-      handleFile(e.target.files[0]);
-    }
-  };
-
   return (
     <div style={{
-      backgroundColor: "var(--bg-surface)",
-      border: "1px solid var(--border)",
-      borderRadius: "14px",
-      padding: "24px",
-      marginBottom: "28px"
+      backgroundColor: "var(--bg-card)",
+      border: "1px solid var(--border-subtle)",
+      borderRadius: "12px",
+      padding: "20px"
     }}>
-      <h2 style={{ fontSize: "17px", fontWeight: "600", marginBottom: "6px", display: "flex", alignItems: "center", gap: "8px" }}>
-        <UploadCloud size={20} color="var(--primary)" /> Upload Examination / Question Material
-      </h2>
-      <p style={{ fontSize: "13.5px", color: "var(--text-muted)", marginBottom: "18px" }}>
-        Supports PDF (Digital & Scanned) as well as examination images (PNG, JPG, TIFF, WebP) up to 50MB.
-      </p>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px" }}>
+        <div>
+          <h2 style={{ fontSize: "15px", fontWeight: "600", color: "var(--text-primary)" }}>
+            Upload Exam Paper or Answer Key
+          </h2>
+          <p style={{ fontSize: "13px", color: "var(--text-secondary)", marginTop: "2px" }}>
+            Supports multi-page PDFs, scanned question sheets, and images (PNG, JPG, TIFF, WebP).
+          </p>
+        </div>
+      </div>
 
       {error && (
         <div style={{
-          backgroundColor: "rgba(239, 68, 68, 0.1)",
-          border: "1px solid rgba(239, 68, 68, 0.3)",
+          backgroundColor: "rgba(239, 68, 68, 0.08)",
+          border: "1px solid rgba(239, 68, 68, 0.2)",
           borderRadius: "8px",
           padding: "10px 14px",
-          marginBottom: "16px",
+          marginBottom: "14px",
           display: "flex",
           alignItems: "center",
-          gap: "10px",
+          gap: "8px",
           color: "#F87171",
-          fontSize: "13.5px"
+          fontSize: "13px"
         }}>
-          <AlertCircle size={18} />
+          <AlertCircle size={16} />
           <span>{error}</span>
         </div>
       )}
 
       {success && (
         <div style={{
-          backgroundColor: "rgba(16, 185, 129, 0.1)",
-          border: "1px solid rgba(16, 185, 129, 0.3)",
+          backgroundColor: "rgba(16, 185, 129, 0.08)",
+          border: "1px solid rgba(16, 185, 129, 0.2)",
           borderRadius: "8px",
           padding: "10px 14px",
-          marginBottom: "16px",
+          marginBottom: "14px",
           display: "flex",
           alignItems: "center",
-          gap: "10px",
+          gap: "8px",
           color: "#34D399",
-          fontSize: "13.5px"
+          fontSize: "13px"
         }}>
-          <CheckCircle2 size={18} />
+          <CheckCircle2 size={16} />
           <span>{success}</span>
         </div>
       )}
@@ -102,40 +98,40 @@ export default function DocumentUpload({ onUploadSuccess }) {
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          padding: "36px 20px",
-          border: `2px dashed ${dragActive ? "var(--primary)" : "var(--border)"}`,
-          borderRadius: "12px",
-          backgroundColor: dragActive ? "rgba(99, 102, 241, 0.05)" : "var(--bg-main)",
+          padding: "28px 16px",
+          border: `1.5px dashed ${dragActive ? "var(--primary)" : "rgba(255, 255, 255, 0.12)"}`,
+          borderRadius: "10px",
+          backgroundColor: dragActive ? "rgba(59, 130, 246, 0.05)" : "var(--bg-input)",
           cursor: uploading ? "not-allowed" : "pointer",
-          transition: "all 0.2s ease"
+          transition: "all 0.15s ease"
         }}
       >
         <input
           type="file"
           accept=".pdf,.png,.jpg,.jpeg,.tiff,.webp"
-          onChange={handleChange}
+          onChange={(e) => e.target.files && handleFile(e.target.files[0])}
           disabled={uploading}
           style={{ display: "none" }}
         />
 
         <div style={{
-          width: "48px",
-          height: "48px",
-          borderRadius: "12px",
-          backgroundColor: "rgba(99, 102, 241, 0.12)",
+          width: "42px",
+          height: "42px",
+          borderRadius: "10px",
+          backgroundColor: "var(--primary-light)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          marginBottom: "12px"
+          marginBottom: "10px"
         }}>
-          <FileText size={24} color="var(--primary)" />
+          <Upload size={20} color="var(--primary)" />
         </div>
 
-        <p style={{ fontSize: "14.5px", fontWeight: "600", color: "var(--text-main)", marginBottom: "4px" }}>
-          {uploading ? "Uploading to secure storage..." : "Click or drag & drop exam document here"}
+        <p style={{ fontSize: "14px", fontWeight: "500", color: "var(--text-primary)", marginBottom: "3px" }}>
+          {uploading ? "Uploading to storage..." : "Choose a file or drag & drop here"}
         </p>
-        <span style={{ fontSize: "12.5px", color: "var(--text-subtle)" }}>
-          Automatic S3 upload with MIME & magic-byte validation
+        <span style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>
+          Max file size: 50MB
         </span>
       </label>
     </div>
