@@ -46,13 +46,19 @@ async def start_document_processing(
     await db.commit()
     await db.refresh(job)
 
+    dispatched_async = False
     try:
+        from app.core.redis import sync_redis_client
+        sync_redis_client.ping()
         task = process_document.delay(job.id)
         job.celery_task_id = task.id
         await db.commit()
         await db.refresh(job)
+        dispatched_async = True
     except Exception as e:
-        logger.warning(f"Could not dispatch to Celery broker directly, executing synchronously: {e}")
+        logger.warning(f"Celery dispatch unavailable ({e}), running pipeline worker locally...")
+
+    if not dispatched_async:
         from app.core.database import SyncSessionLocal
         from app.services.pipeline_service import run_pipeline
         with SyncSessionLocal() as sync_db:

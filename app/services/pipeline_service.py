@@ -167,11 +167,98 @@ def run_pipeline(db: Session, job_id: str):
             db.add(q)
         db.commit()
 
-        # Progression through remaining pipeline stages
-        for stage, progress, doc_status in PIPELINE_STAGES[6:]:
-            update_job_progress(db, job, stage, progress, doc_status)
+        # 1. Question Extraction & Classification Stage (LLM + Rules)
+        update_job_progress(db, job, ProcessingStage.QUESTION_EXTRACTION, 75, DocumentStatus.EXTRACTING)
+        from app.services.extraction_service import QuestionExtractionService
+        from app.schemas.segmentation import QuestionOption
+        extraction_service = QuestionExtractionService()
 
-        logger.info(f"Pipeline completed for document {doc.id}")
+        # Update classification for extracted questions
+        questions = db.query(Question).filter(Question.document_id == doc.id).all()
+        for q in questions:
+            # Map options to QuestionOption
+            q_options = [QuestionOption(**opt) for opt in q.options] if q.options else []
+            q.question_type = extraction_service.classify_question_type(q.question_text, q_options)
+        db.commit()
+
+        # 2. Answer Key Extraction Stage
+        update_job_progress(db, job, ProcessingStage.ANSWER_KEY, 85, DocumentStatus.MATCHING_ANSWERS)
+        from app.services.answer_key_extractor import AnswerKeyExtractor
+        from app.models.answer_key_entry import AnswerKeyEntry
+
+        # Clean existing entries if re-running
+        db.query(AnswerKeyEntry).filter(AnswerKeyEntry.document_id == doc.id).delete()
+
+        for page in doc.pages:
+            p_text = page.normalized_text or page.extracted_text or ""
+            if AnswerKeyExtractor.is_answer_key_section(p_text):
+                entries = AnswerKeyExtractor.extract_entries(p_text, page_number=page.page_number)
+                for e in entries:
+                    entry_obj = AnswerKeyEntry(
+                        document_id=doc.id,
+                        question_number=e.question_number,
+                        answer=e.answer,
+                        confidence=e.confidence,
+                        source_page=e.source_page,
+                        raw_text=e.raw_text
+                    )
+                    db.add(entry_obj)
+        db.commit()
+
+        # 3. Answer Matching Stage
+        update_job_progress(db, job, ProcessingStage.MATCHING, 90, DocumentStatus.MATCHING_ANSWERS)
+        from app.services.answer_matching_service import AnswerMatchingService
+
+        answer_entries = db.query(AnswerKeyEntry).filter(AnswerKeyEntry.document_id == doc.id).all()
+        matching_results = AnswerMatchingService.match_answers(questions, answer_entries)
+
+        for q in questions:
+            if q.id in matching_results:
+                match = matching_results[q.id]
+                if match.status == "MATCHED":
+                    q.answer = match.answer
+                    q.answer_confidence = match.answer_confidence
+        db.commit()
+
+        # 4. Confidence & Validation Stage
+        update_job_progress(db, job, ProcessingStage.VALIDATION, 95, DocumentStatus.VALIDATING_RESULTS)
+        from app.services.confidence_engine import ConfidenceEngine
+        from app.models.question_warning import QuestionWarning
+
+        # Clean previous warnings
+        for q in questions:
+            db.query(QuestionWarning).filter(QuestionWarning.question_id == q.id).delete()
+
+        has_warnings = False
+        for q in questions:
+            score = ConfidenceEngine.score_question(
+                q,
+                ocr_confidence=0.95,
+                boundary_confidence=0.95 if q.question_number else 0.60,
+                has_answer=bool(q.answer),
+                answer_confidence=q.answer_confidence or 0.8
+            )
+            q.confidence = score
+            if score >= 0.85:
+                q.status = QuestionStatus.EXTRACTED
+            elif score >= 0.60:
+                q.status = QuestionStatus.PARTIAL
+            else:
+                q.status = QuestionStatus.REVIEW_REQUIRED
+
+            warnings = ConfidenceEngine.generate_warnings(q)
+            if warnings:
+                has_warnings = True
+                for w in warnings:
+                    db.add(w)
+
+        db.commit()
+
+        # Final Stage
+        final_doc_status = DocumentStatus.COMPLETED_WITH_WARNINGS if has_warnings else DocumentStatus.COMPLETED
+        update_job_progress(db, job, ProcessingStage.COMPLETED, 100, final_doc_status)
+
+        logger.info(f"Pipeline completed for document {doc.id} with status {final_doc_status.value}")
 
     except Exception as e:
         logger.exception(f"Pipeline failed for document {doc.id}: {e}")

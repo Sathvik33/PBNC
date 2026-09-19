@@ -1,0 +1,175 @@
+{
+	"info": {
+		"_postman_id": "8f3b2019-94bf-4b95-a131-01f4dc71e98d",
+		"name": "Document Intelligence & Question Extraction API",
+		"description": "Production-oriented Document Intelligence & Question Extraction Service test collection",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "1. Health Check",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/health",
+					"host": ["{{base_url}}"],
+					"path": ["health"]
+				}
+			}
+		},
+		{
+			"name": "2. Register User",
+			"request": {
+				"method": "POST",
+				"header": [
+					{"key": "Content-Type", "value": "application/json"}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"email\": \"doctor@example.com\",\n  \"password\": \"SecurePass123!\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/v1/auth/register",
+					"host": ["{{base_url}}"],
+					"path": ["api", "v1", "auth", "register"]
+				}
+			}
+		},
+		{
+			"name": "3. Login User",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"var jsonData = pm.response.json();",
+							"pm.environment.set(\"token\", jsonData.access_token);"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{"key": "Content-Type", "value": "application/json"}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"email\": \"doctor@example.com\",\n  \"password\": \"SecurePass123!\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/v1/auth/login",
+					"host": ["{{base_url}}"],
+					"path": ["api", "v1", "auth", "login"]
+				}
+			}
+		},
+		{
+			"name": "4. Upload Document",
+			"request": {
+				"method": "POST",
+				"header": [
+					{"key": "Authorization", "value": "Bearer {{token}}"}
+				],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "file",
+							"type": "file",
+							"src": "tests/fixtures/sample_exam.pdf"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{base_url}}/api/v1/documents",
+					"host": ["{{base_url}}"],
+					"path": ["api", "v1", "documents"]
+				}
+			}
+		},
+		{
+			"name": "5. Check Document Status",
+			"request": {
+				"method": "GET",
+				"header": [
+					{"key": "Authorization", "value": "Bearer {{token}}"}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/v1/documents/{{document_id}}/status",
+					"host": ["{{base_url}}"],
+					"path": ["api", "v1", "documents", "{{document_id}}", "status"]
+				}
+			}
+		},
+		{
+			"name": "6. Retrieve Questions",
+			"request": {
+				"method": "GET",
+				"header": [
+					{"key": "Authorization", "value": "Bearer {{token}}"}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/v1/documents/{{document_id}}/questions",
+					"host": ["{{base_url}}"],
+					"path": ["api", "v1", "documents", "{{document_id}}", "questions"]
+				}
+			}
+		},
+		{
+			"name": "7. Retrieve Answers",
+			"request": {
+				"method": "GET",
+				"header": [
+					{"key": "Authorization", "value": "Bearer {{token}}"}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/v1/documents/{{document_id}}/answers",
+					"host": ["{{base_url}}"],
+					"path": ["api", "v1", "documents", "{{document_id}}", "answers"]
+				}
+			}
+		},
+		{
+			"name": "8. Retrieve Warnings",
+			"request": {
+				"method": "GET",
+				"header": [
+					{"key": "Authorization", "value": "Bearer {{token}}"}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/v1/documents/{{document_id}}/warnings",
+					"host": ["{{base_url}}"],
+					"path": ["api", "v1", "documents", "{{document_id}}", "warnings"]
+				}
+			}
+		},
+		{
+			"name": "9. Associate Documents",
+			"request": {
+				"method": "POST",
+				"header": [
+					{"key": "Authorization", "value": "Bearer {{token}}"},
+					{"key": "Content-Type", "value": "application/json"}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"related_document_id\": \"{{key_doc_id}}\",\n  \"relationship_type\": \"ANSWER_KEY\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/v1/documents/{{document_id}}/relationships",
+					"host": ["{{base_url}}"],
+					"path": ["api", "v1", "documents", "{{document_id}}", "relationships"]
+				}
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000"
+		}
+	]
+}

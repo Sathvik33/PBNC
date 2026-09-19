@@ -39,6 +39,10 @@ def create_app() -> FastAPI:
     # API routes
     app.include_router(api_router, prefix=settings.API_V1_STR)
 
+    # Register global standardized exception handlers
+    from app.core.errors import register_exception_handlers
+    register_exception_handlers(app)
+
     # Top-level health convenience redirect/route
     @app.get("/health", tags=["Health"])
     async def root_health():
