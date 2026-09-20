@@ -86,13 +86,38 @@ class QuestionSegmenter:
             current_q_num = None
             current_lines = []
 
+        ANSWER_KEY_HEADERS = [
+            re.compile(r"^\s*(?:---\s*)?(?:ANSWER\s*KEY|ANSWERS|SOLUTIONS|CORRECT\s*ANSWERS)\s*[:.-]*$", re.IGNORECASE)
+        ]
+
+        SECTION_HEADER_PATTERN = re.compile(
+            r"^\s*(?:SECTION\s+[A-Z0-9]+|PART\s+[A-Z0-9]+)\s*[:.-]?.*$",
+            re.IGNORECASE
+        )
+
         for page_num, text in page_texts:
             if not text:
                 continue
 
             lines = [l.strip() for l in text.split("\n") if l.strip()]
+            in_answer_key = False
+
             for line in lines:
-                # If we are inside an active question, check whether this line is an option (e.g. 1) Opt or A. Opt)
+                # 1. Stop segmenting questions once the Answer Key section is reached
+                if any(p.match(line) for p in ANSWER_KEY_HEADERS):
+                    commit_current()
+                    in_answer_key = True
+                    break
+
+                if in_answer_key:
+                    break
+
+                # 2. Skip structural examination section markers like "SECTION A: ..."
+                if SECTION_HEADER_PATTERN.match(line):
+                    commit_current()
+                    continue
+
+                # 3. If inside an active question, check for option lines
                 is_option = False
                 if current_q_num:
                     opt_match = cls.OPTION_PATTERN.match(line)
@@ -104,6 +129,7 @@ class QuestionSegmenter:
                     current_end_page = page_num
                     continue
 
+                # 4. Check for question start
                 match = cls.QUESTION_START_PATTERN.match(line)
                 if match:
                     commit_current()
@@ -114,12 +140,9 @@ class QuestionSegmenter:
                     if remainder:
                         current_lines.append(remainder)
                 else:
-                    if current_lines or current_q_num:
+                    # Only collect subsequent lines if an active question has already started
+                    if current_q_num:
                         current_lines.append(line)
-                        current_end_page = page_num
-                    else:
-                        current_lines.append(line)
-                        current_start_page = page_num
                         current_end_page = page_num
 
         commit_current()

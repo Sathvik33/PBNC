@@ -25,81 +25,63 @@ class VisionLLMOCRProvider(OCRProvider):
             "Return only the extracted text without introductory commentary."
         )
 
-        # 1. Try Groq Vision
-        if self.groq_key:
-            try:
-                logger.info(f"Extracting image text with Groq Vision ({self.groq_vision_model})...")
-                headers = {
-                    "Authorization": f"Bearer {self.groq_key}",
-                    "Content-Type": "application/json"
-                }
-                payload = {
-                    "model": self.groq_vision_model,
-                    "messages": [
-                        {
-                            "role": "user",
-                            "content": [
-                                {"type": "text", "text": prompt},
-                                {
-                                    "type": "image_url",
-                                    "image_url": {"url": f"data:image/png;base64,{base64_image}"}
-                                }
-                            ]
-                        }
-                    ],
-                    "temperature": 0.1,
-                    "max_tokens": 2048
-                }
-                with httpx.Client(timeout=40.0) as client:
-                    res = client.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
-                    res.raise_for_status()
-                    data = res.json()
-                    text = data["choices"][0]["message"]["content"].strip()
-                    return OCRResult(
-                        raw_text=text,
-                        confidence=0.95,
-                        metadata={"engine": "groq_vision", "model": self.groq_vision_model},
-                        is_low_quality=len(text) < 5
-                    )
-            except Exception as e:
-                logger.warning(f"Groq Vision extraction failed: {e}. Falling back...")
-
-        # 2. Try OpenRouter Vision
+        # 1. Try OpenRouter Vision with active working models
         if self.openrouter_key:
-            try:
-                logger.info("Extracting image text with OpenRouter Vision...")
-                headers = {
-                    "Authorization": f"Bearer {self.openrouter_key}",
-                    "Content-Type": "application/json"
-                }
-                payload = {
-                    "model": "meta-llama/llama-3.2-11b-vision-instruct:free",
-                    "messages": [
-                        {
-                            "role": "user",
-                            "content": [
-                                {"type": "text", "text": prompt},
-                                {
-                                    "type": "image_url",
-                                    "image_url": {"url": f"data:image/png;base64,{base64_image}"}
-                                }
-                            ]
-                        }
-                    ]
-                }
-                with httpx.Client(timeout=40.0) as client:
-                    res = client.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
-                    res.raise_for_status()
-                    data = res.json()
-                    text = data["choices"][0]["message"]["content"].strip()
-                    return OCRResult(
-                        raw_text=text,
-                        confidence=0.90,
-                        metadata={"engine": "openrouter_vision"},
-                        is_low_quality=len(text) < 5
-                    )
-            except Exception as e:
-                logger.warning(f"OpenRouter Vision extraction failed: {e}")
+            vision_models = [
+                "inclusionai/ling-3.0-flash-vl:free",
+                "nex-agi/nex-n2.5-mini:free",
+                "qwen/qwen3.8-27b:free",
+                "google/gemini-2.0-flash-exp:free",
+                "meta-llama/llama-3.2-11b-vision-instruct:free"
+            ]
+            for model_id in vision_models:
+                try:
+                    logger.info(f"Extracting image text with OpenRouter Vision ({model_id})...")
+                    headers = {
+                        "Authorization": f"Bearer {self.openrouter_key}",
+                        "Content-Type": "application/json",
+                        "HTTP-Referer": "https://pbnc.ai",
+                        "X-Title": "Document Intelligence OCR"
+                    }
+                    payload = {
+                        "model": model_id,
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": [
+                                    {"type": "text", "text": prompt},
+                                    {
+                                        "type": "image_url",
+                                        "image_url": {"url": f"data:image/png;base64,{base64_image}"}
+                                    }
+                                ]
+                            }
+                        ],
+                        "temperature": 0.1,
+                        "max_tokens": 2048
+                    }
+                    with httpx.Client(timeout=45.0) as client:
+                        res = client.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
+                        if res.status_code == 200:
+                            data = res.json()
+                            choices = data.get("choices", [])
+                            if choices:
+                                msg = choices[0].get("message", {})
+                                raw_c = msg.get("content") or msg.get("reasoning") or ""
+                                if isinstance(raw_c, list):
+                                    text = " ".join(item.get("text", "") for item in raw_c if isinstance(item, dict)).strip()
+                                else:
+                                    text = str(raw_c).strip()
+
+                                if text:
+                                    return OCRResult(
+                                        raw_text=text,
+                                        confidence=0.95,
+                                        metadata={"engine": "openrouter_vision", "model": model_id},
+                                        is_low_quality=len(text) < 5
+                                    )
+                except Exception as e:
+                    logger.warning(f"OpenRouter Vision ({model_id}) failed: {e}")
 
         return OCRResult(
             raw_text="",

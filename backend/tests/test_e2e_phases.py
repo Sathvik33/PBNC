@@ -45,9 +45,10 @@ ANSWER KEY
     assert up_res.status_code == 201
     doc_id = up_res.json()["id"]
 
-    # 3. Process the document
-    proc_res = await async_client.post(f"/api/v1/documents/{doc_id}/process", headers=headers)
-    assert proc_res.status_code == 202
+    # 3. Process the document (mock Redis ping so pipeline executes synchronously during test)
+    with patch("app.core.redis.sync_redis_client.ping", side_effect=Exception("Test Sync Fallback")):
+        proc_res = await async_client.post(f"/api/v1/documents/{doc_id}/process", headers=headers)
+        assert proc_res.status_code == 202
 
     # 4. Fetch extracted questions
     q_res = await async_client.get(f"/api/v1/documents/{doc_id}/questions", headers=headers)

@@ -8,11 +8,9 @@ from app.api.router import api_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
     setup_logging()
     logger.info(f"Starting {settings.APP_NAME} in {settings.APP_ENV} mode...")
     yield
-    # Shutdown
     logger.info(f"Shutting down {settings.APP_NAME}...")
 
 
@@ -31,9 +29,11 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
+        allow_origin_regex=".*",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["*"],  
     )
 
     # API routes

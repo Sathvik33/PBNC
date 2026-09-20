@@ -4,6 +4,7 @@ from typing import BinaryIO
 from app.core.config import settings
 from app.core.logging import logger
 from app.services.storage_service import StorageService
+from app.services.local_storage_service import LocalStorageService
 
 
 class S3StorageService(StorageService):

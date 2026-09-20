@@ -26,9 +26,7 @@ export default function App() {
       const res = await api.getDocuments();
       const items = res.items || [];
       setDocuments(items);
-      if (!selectedDocId && items.length > 0) {
-        setSelectedDocId(items[0].id);
-      }
+      // Let user view the landing page unless they pick a document or just uploaded one
     } catch (err) {
       console.error("Failed to load documents:", err);
     }
@@ -73,7 +71,11 @@ export default function App() {
         padding: "0 20px",
         zIndex: 40
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+        <div 
+          onClick={() => setSelectedDocId(null)}
+          title="Return to Home / Instructions"
+          style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", userSelect: "none" }}
+        >
           <div style={{
             width: "28px",
             height: "28px",
@@ -133,6 +135,7 @@ export default function App() {
         <QuestionWorkspace
           selectedDoc={selectedDoc}
           onRefresh={loadDocuments}
+          onOpenUpload={() => setIsUploadOpen(true)}
         />
       </div>
 

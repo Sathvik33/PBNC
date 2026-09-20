@@ -1,0 +1,42 @@
+  {
+    "document_id": "doc_physics_sample_001",
+    "filename": "physics_exam.pdf",
+    "total_questions": 2,
+    "status": "COMPLETED",
+    "questions": [
+    {
+      "id": "q_001",
+      "question_number": "1",
+      "question_text": "Which gas is most abundant in Earth's atmosphere?",
+      "question_type": "MCQ",
+      "options": [
+        { "label": "A", "text": "Oxygen", "is_correct": false },
+        { "label": "B", "text": "Nitrogen", "is_correct": true },
+        { "label": "C", "text": "Carbon Dioxide", "is_correct": false },
+        { "label": "D", "text": "Hydrogen", "is_correct": false }
+      ],
+      "answer": "B",
+      "answer_confidence": 0.95,
+      "confidence": 0.95,
+      "status": "EXTRACTED",
+      "source_pages": [1],
+      "warnings": []
+    },
+    {
+      "id": "q_002",
+      "question_number": "2",
+      "question_text": "The Sun is a star.",
+      "question_type": "TRUE_FALSE",
+      "options": [
+        { "label": "A", "text": "True", "is_correct": true },
+        { "label": "B", "text": "False", "is_correct": false }
+      ],
+      "answer": "A",
+      "answer_confidence": 0.92,
+      "confidence": 0.94,
+      "status": "EXTRACTED",
+      "source_pages": [1],
+      "warnings": []
+    }
+  ]
+}

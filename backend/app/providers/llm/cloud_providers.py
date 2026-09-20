@@ -65,6 +65,7 @@ class OpenRouterProvider(LLMProvider):
             "model": self.model,
             "messages": messages,
             "temperature": 0.1,
+            "max_tokens": 3000,
         }
         if json_mode:
             payload["response_format"] = {"type": "json_object"}

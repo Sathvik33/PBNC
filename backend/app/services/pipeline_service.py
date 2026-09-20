@@ -75,6 +75,10 @@ def run_pipeline(db: Session, job_id: str):
         update_job_progress(db, job, ProcessingStage.EXTRACTING_PAGES, 10, DocumentStatus.PROCESSING)
         pages_data = []
 
+        # Clear existing pages if re-running
+        db.query(DocumentPage).filter(DocumentPage.document_id == doc.id).delete()
+        db.commit()
+
         if doc.file_type == "application/pdf":
             pdf_proc = PDFProcessor()
             pdf_result = pdf_proc.process(file_bytes)
@@ -115,12 +119,19 @@ def run_pipeline(db: Session, job_id: str):
             db.add(doc_page)
             db.commit()
 
+        db.refresh(doc)
+
         # OCR Processing Stage
         update_job_progress(db, job, ProcessingStage.OCR, 35, DocumentStatus.OCR_PROCESSING)
         from app.services.ocr_service import OCRService
         ocr_service = OCRService()
 
-        for page in doc.pages:
+        pages = db.query(DocumentPage).filter(DocumentPage.document_id == doc.id).order_by(DocumentPage.page_number).all()
+        total_pages = len(pages) or 1
+        for idx, page in enumerate(pages):
+            ocr_pct = 35 + int((idx / total_pages) * 15)
+            update_job_progress(db, job, ProcessingStage.OCR, ocr_pct, DocumentStatus.OCR_PROCESSING)
+            
             # If text is empty or marked for OCR, run OCR
             should_ocr = page.ocr_used or not page.extracted_text or page.processing_status == "PENDING_OCR"
             if should_ocr and page.image_path:
@@ -133,13 +144,14 @@ def run_pipeline(db: Session, job_id: str):
                 except Exception as ocr_err:
                     logger.warning(f"OCR processing failed for page {page.page_number}: {ocr_err}")
                     page.processing_status = "FAILED"
-        db.commit()
+            db.commit()
 
         # Text Normalization Stage
         update_job_progress(db, job, ProcessingStage.TEXT_NORMALIZATION, 50, DocumentStatus.EXTRACTING)
         from app.processors.text_processor import TextNormalizer
 
-        for page in doc.pages:
+        pages = db.query(DocumentPage).filter(DocumentPage.document_id == doc.id).order_by(DocumentPage.page_number).all()
+        for page in pages:
             if page.extracted_text:
                 page.normalized_text = TextNormalizer.normalize(page.extracted_text)
         db.commit()
@@ -150,7 +162,8 @@ def run_pipeline(db: Session, job_id: str):
         from app.models.question import Question
         from app.models.enums import QuestionType, QuestionStatus
 
-        page_texts = [(p.page_number, p.normalized_text or p.extracted_text or "") for p in doc.pages]
+        pages = db.query(DocumentPage).filter(DocumentPage.document_id == doc.id).order_by(DocumentPage.page_number).all()
+        page_texts = [(p.page_number, p.normalized_text or p.extracted_text or "") for p in pages]
         segments = QuestionSegmenter.segment(page_texts)
 
         # Clear previous questions if re-running
@@ -187,7 +200,8 @@ def run_pipeline(db: Session, job_id: str):
         needs_llm = has_cloud_llm or len(questions) == 0 or any(not q.options for q in questions)
 
         if needs_llm:
-            combined_text = "\n\n".join(p.normalized_text or p.extracted_text or "" for p in doc.pages)
+            pages = db.query(DocumentPage).filter(DocumentPage.document_id == doc.id).order_by(DocumentPage.page_number).all()
+            combined_text = "\n\n".join(p.normalized_text or p.extracted_text or "" for p in pages)
             if combined_text.strip():
                 try:
                     logger.info(f"Invoking LLM question extraction for document {doc.id}...")
@@ -195,12 +209,21 @@ def run_pipeline(db: Session, job_id: str):
                     if llm_questions:
                         db.query(Question).filter(Question.document_id == doc.id).delete()
                         for lq in llm_questions:
+                            opts = None
+                            if lq.options:
+                                opts = []
+                                for opt in lq.options:
+                                    is_corr = bool(lq.answer and opt.label.strip().upper() == lq.answer.strip().upper())
+                                    opts.append({"label": opt.label, "text": opt.text, "is_correct": is_corr})
+
                             new_q = Question(
                                 document_id=doc.id,
                                 question_number=lq.question_number,
                                 question_text=lq.question_text,
                                 question_type=lq.question_type,
-                                options=[{"label": opt.label, "text": opt.text} for opt in lq.options] if lq.options else None,
+                                options=opts,
+                                answer=lq.answer,
+                                answer_confidence=0.95 if lq.answer else None,
                                 confidence=lq.confidence,
                                 status=QuestionStatus.EXTRACTED if lq.confidence >= 0.85 else QuestionStatus.PARTIAL,
                                 source_pages=[1]
@@ -231,7 +254,12 @@ def run_pipeline(db: Session, job_id: str):
 
         for q in questions:
             q_options = [QuestionOption(**opt) for opt in q.options] if q.options else []
-            q.question_type = extraction_service.classify_question_type(q.question_text, q_options)
+            # Check if options explicitly represent True/False
+            labels_or_texts = " ".join(o.text.lower() for o in q_options)
+            if len(q_options) == 2 and "true" in labels_or_texts and "false" in labels_or_texts:
+                q.question_type = QuestionType.TRUE_FALSE
+            elif not q.question_type or q.question_type == QuestionType.UNKNOWN:
+                q.question_type = extraction_service.classify_question_type(q.question_text, q_options)
         db.commit()
 
         # 2. Answer Key Extraction Stage
@@ -242,7 +270,8 @@ def run_pipeline(db: Session, job_id: str):
         # Clean existing entries if re-running
         db.query(AnswerKeyEntry).filter(AnswerKeyEntry.document_id == doc.id).delete()
 
-        for page in doc.pages:
+        pages = db.query(DocumentPage).filter(DocumentPage.document_id == doc.id).order_by(DocumentPage.page_number).all()
+        for page in pages:
             p_text = page.normalized_text or page.extracted_text or ""
             if AnswerKeyExtractor.is_answer_key_section(p_text):
                 entries = AnswerKeyExtractor.extract_entries(p_text, page_number=page.page_number)
@@ -263,6 +292,7 @@ def run_pipeline(db: Session, job_id: str):
         from app.services.answer_matching_service import AnswerMatchingService
 
         answer_entries = db.query(AnswerKeyEntry).filter(AnswerKeyEntry.document_id == doc.id).all()
+        questions = db.query(Question).filter(Question.document_id == doc.id).all()
         matching_results = AnswerMatchingService.match_answers(questions, answer_entries)
 
         for q in questions:
@@ -272,12 +302,15 @@ def run_pipeline(db: Session, job_id: str):
                     q.answer = match.answer
                     q.answer_confidence = match.answer_confidence
                     if q.options and match.answer:
+                        from sqlalchemy.orm.attributes import flag_modified
                         updated_options = []
-                        for opt in q.options:
-                            opt_label = opt.get("label") or opt.get("key") or ""
-                            opt["is_correct"] = (opt_label.strip().upper() == match.answer.strip().upper())
-                            updated_options.append(opt)
+                        for opt in list(q.options):
+                            opt_dict = dict(opt)
+                            opt_label = opt_dict.get("label") or opt_dict.get("key") or ""
+                            opt_dict["is_correct"] = (opt_label.strip().upper() == match.answer.strip().upper())
+                            updated_options.append(opt_dict)
                         q.options = updated_options
+                        flag_modified(q, "options")
         db.commit()
 
         # 4. Confidence & Validation Stage

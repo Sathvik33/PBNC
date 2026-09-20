@@ -59,13 +59,32 @@ class QuestionExtractionService:
                 content = res.content.strip()
 
                 # Clean markdown backticks if model wrapped JSON
-                if content.startswith("```"):
-                    content = re.sub(r"^```(?:json)?\s*", "", content)
-                    content = re.sub(r"\s*```$", "", content)
+                if "```" in content:
+                    match = re.search(r"```(?:json)?\s*(.*?)\s*```", content, re.DOTALL)
+                    if match:
+                        content = match.group(1).strip()
+                    else:
+                        content = re.sub(r"^```(?:json)?\s*", "", content)
+                        content = re.sub(r"\s*```$", "", content)
 
                 parsed = json.loads(content)
-                validated = StructuredExtractionResult.model_validate(parsed)
-                return validated.questions
+
+                if isinstance(parsed, dict) and "questions" in parsed:
+                    validated = StructuredExtractionResult.model_validate(parsed)
+                    return validated.questions
+                elif isinstance(parsed, list):
+                    return [StructuredQuestion.model_validate(item) for item in parsed]
+                elif isinstance(parsed, dict):
+                    # Single question dict returned by LLM
+                    if "question_text" in parsed or "question" in parsed:
+                        q_text = parsed.get("question_text") or parsed.get("question")
+                        return [StructuredQuestion(
+                            question_number=str(parsed.get("question_number", "1")),
+                            question_text=q_text,
+                            question_type=parsed.get("question_type", QuestionType.DESCRIPTIVE),
+                            options=[],
+                            confidence=0.9
+                        )]
             except Exception as e:
                 logger.warning(f"LLM extraction attempt {attempt + 1} failed: {e}")
                 user_prompt = f"Previous response was invalid. Ensure strictly valid JSON matching schema.\n\nText:\n{text}"

@@ -33,7 +33,7 @@ services:
 
   api:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
     container_name: doc_intelligence_api
     restart: unless-stopped
@@ -54,14 +54,14 @@ services:
       - STORAGE_PATH=/app/storage
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
     volumes:
-      - .:/app
+      - ./backend:/app
       - doc_storage:/app/storage
     command: >
       sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 
   worker:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
     container_name: doc_intelligence_worker
     restart: unless-stopped
@@ -80,7 +80,7 @@ services:
       - STORAGE_PATH=/app/storage
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
     volumes:
-      - .:/app
+      - ./backend:/app
       - doc_storage:/app/storage
     command: celery -A app.workers.celery_app.celery_app worker --loglevel=info
 
